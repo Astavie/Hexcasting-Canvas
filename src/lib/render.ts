@@ -50,7 +50,7 @@ function drawLineSeq(
   context.restore();
 }
 
-function drawSpot(
+export function drawSpot(
   context: CanvasRenderingContext2D,
   point: Vector2,
   radius: number,
@@ -64,7 +64,7 @@ function drawSpot(
   context.restore();
 }
 
-function lerp(time: number, a: number, b: number): number {
+export function lerp(time: number, a: number, b: number): number {
   return time * a + (1 - time) * b;
 }
 

@@ -61,9 +61,31 @@ export class HexCoord {
     this.r = r;
   }
 
-  add(dir: HexDir): HexCoord {
-    const [dq, dr] = dirDelta[dir];
-    return new HexCoord(this.q + dq, this.r + dr);
+  static snap(vec: Vector2): HexCoord {
+    let qf = (SQRT_3/3 * vec.x - 1/3 * vec.y) / DEFAULT_SCALE;
+    let rf = (2/3 * vec.y) / DEFAULT_SCALE;
+
+    const q = Math.round(qf);
+    const r = Math.round(rf);
+    qf -= q;
+    rf -= r;
+
+    if (Math.abs(q) >= Math.abs(r)) {
+      return new HexCoord(q + Math.round(qf + 0.5 * rf), r);
+    } else {
+      return new HexCoord(q, r + Math.round(rf + 0.5 * qf));
+    }
+  }
+
+  add(pos: HexCoord): HexCoord
+  add(dir: HexDir): HexCoord
+  add(p: HexCoord | HexDir): HexCoord {
+    if (p instanceof HexCoord) {
+      return new HexCoord(this.q + p.q, this.r + p.r);
+    } else {
+      const [dq, dr] = dirDelta[p];
+      return new HexCoord(this.q + dq, this.r + dr);
+    }
   }
 
   clone(): HexCoord {
@@ -79,6 +101,24 @@ export class HexCoord {
 
   equals(other: HexCoord): boolean {
     return this.q === other.q && this.r === other.r;
+  }
+
+  // Taken from:
+  // https://github.com/FallingColors/HexMod/blob/e1ad4b316dd1e8f1f1300ee95bdbf796e8ebcad1/Common/src/main/java/at/petrak/hexcasting/api/casting/math/HexCoord.kt#L41
+  range(radius: number): HexCoord[] {
+    let q = -radius;
+    let r = Math.max(-radius, 0);
+
+    const out: HexCoord[] = [];
+    while (r <= radius + Math.min(0, -q) || q < radius) {
+      if (r > radius + Math.min(0, -q)) {
+        q++;
+        r = -radius + Math.max(0, -q);
+      }
+      out.push(new HexCoord(this.q + q, this.r + r));
+      r++;
+    }
+    return out;
   }
 }
 

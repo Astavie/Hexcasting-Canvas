@@ -28,6 +28,10 @@ export class LineHexPattern extends Line {
     });
   }
 
+  public endSnapped(): number {
+    return this.end();
+  }
+
   public getCursor(): Vector2 {
     return this.getPointAtPercentage(this.end()).position;
   }

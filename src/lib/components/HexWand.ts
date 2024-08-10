@@ -1,5 +1,5 @@
 import { Img, ImgProps, initial, nodeName, signal } from "@motion-canvas/2d";
-import { createSignal, linear, SignalValue, SimpleSignal, TimingFunction } from "@motion-canvas/core";
+import { createSignal, easeInCubic, easeInOutCubic, easeInOutQuad, easeInOutSine, easeInQuad, easeInSine, easeOutCubic, easeOutQuad, easeOutSine, linear, SignalValue, SimpleSignal, TimingFunction } from "@motion-canvas/core";
 import { LineHexPattern } from "./LineHexPattern";
 import { ZappyHexPattern } from "./ZappyHexPattern";
 import { DEFAULT_SCALE } from "../pattern";
@@ -27,18 +27,10 @@ export class HexWand extends Img {
     })
   }
 
-  public *drawPattern(pat: LineHexPattern | ZappyHexPattern, speed: number, move: boolean = false, timingFunction: TimingFunction = linear) {
+  public *drawPattern(pat: LineHexPattern | ZappyHexPattern, speed: number, timingFunction: TimingFunction = linear) {
     const transform = createSignal(() => this.worldToParent().multiply(pat.localToWorld()));
     const destination = () => pat.getCursor().transformAsPoint(transform());
-
-    if (move) {
-      const scale = Math.sqrt(this.scale().x * this.scale().y);
-      const hexDis = destination().sub(this.position()).magnitude / DEFAULT_SCALE / scale / 1.5;
-      yield* this.position(destination, hexDis / speed, timingFunction);
-    } else {
-      this.position(destination);
-    }
-
+    this.position(destination);
     const time = (pat.pattern().angles.length + 1) / speed;
     yield* pat.end(1, time, timingFunction);
   }
@@ -46,7 +38,29 @@ export class HexWand extends Img {
   public *drawPatterns(pats: (LineHexPattern | ZappyHexPattern)[], speed: number) {
     for (let i = 0; i < pats.length; i++) {
       const pat = pats[i];
-      yield* this.drawPattern(pat, speed, i > 0);
+
+      let adjustedSpeed = speed;
+      let timing = linear;
+      if (i === 0 && i === pats.length - 1) {
+        adjustedSpeed /= Math.PI / 2;
+        timing = easeInOutSine;
+      } else if (i === 0) {
+        adjustedSpeed /= Math.PI / 2;
+        timing = easeInSine;
+      } else if (i === pats.length - 1) {
+        adjustedSpeed /= Math.PI / 2;
+        timing = easeOutSine;
+      }
+
+      if (i > 0) {
+        const transform = createSignal(() => this.worldToParent().multiply(pat.localToWorld()));
+        const destination = () => pat.getCursor().transformAsPoint(transform());
+        const scale = Math.sqrt(this.scale().x * this.scale().y);
+        const hexDis = destination().sub(this.position()).magnitude / DEFAULT_SCALE / scale / 1.5;
+        yield* this.position(destination, hexDis / speed, linear);
+      }
+
+      yield* this.drawPattern(pat, adjustedSpeed, timing);
     }
   }
 }

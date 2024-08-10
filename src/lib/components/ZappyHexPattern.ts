@@ -71,7 +71,7 @@ export class ZappyHexPattern extends Node {
     }
   }
 
-  public progressSnapped(): number {
+  public endSnapped(): number {
     if (this.isSnapped()) {
       const length = this.pattern().angles.length + 2;
       return Math.ceil(this.end() * (length - 1)) / (length - 1);
