@@ -1,4 +1,4 @@
-import {Img, makeScene2D, Video, View2D} from '@motion-canvas/2d';
+import {Img, makeScene2D, View2D} from '@motion-canvas/2d';
 import {createRef, tween, waitFor} from '@motion-canvas/core';
 import { HexGrid } from '../lib/components/HexGrid';
 

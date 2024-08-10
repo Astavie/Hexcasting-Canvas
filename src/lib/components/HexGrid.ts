@@ -1,11 +1,12 @@
 import { nodeName, NodeProps, Node, initial, signal, vector2Signal, Vector2LengthSignal, Length } from "@motion-canvas/2d";
-import { BBox, createSignal, EPSILON, PossibleVector2, SignalValue, SimpleSignal, Vector2 } from "@motion-canvas/core";
+import { BBox, EPSILON, PossibleVector2, SignalValue, SimpleSignal, Vector2 } from "@motion-canvas/core";
 import { HexWand, HexWandType } from "./HexWand";
 import { DEFAULT_SCALE, HexCoord, HexDir, HexPattern, PatternType, PossibleHexPattern } from "../pattern";
 import { ZappyHexPattern } from "./ZappyHexPattern";
 import { LineHexPattern, PreviewHexPattern } from "./LineHexPattern";
 import { drawSpot, lerp } from "../render";
 import chroma from "chroma-js";
+import { HexVM } from "../vm";
 
 export interface HexGridProps extends NodeProps {
   wandType?: SignalValue<HexWandType>,
@@ -15,7 +16,7 @@ export interface HexGridProps extends NodeProps {
 @nodeName('HexGrid')
 export class HexGrid extends Node {
   
-  @initial("oak")
+  @initial("cursor")
   @signal()
   public declare readonly wandType: SimpleSignal<HexWandType, this>;
 
@@ -36,7 +37,10 @@ export class HexGrid extends Node {
 
   public constructor(props?: HexGridProps) {
     super({ ...props });
-    this._wand = new HexWand({ type: () => this.wandType() });
+    this._wand = new HexWand({
+      type: () => this.wandType(),
+      position: new HexCoord(0.333, 0.333).point()
+    });
     this.add(this._wand);
   }
 
@@ -54,7 +58,7 @@ export class HexGrid extends Node {
     return this.add(pat);
   }
 
-  public *drawPatterns(pats: PossibleHexPattern[], speed: number, preview: boolean = false) {
+  public *drawPatterns(pats: PossibleHexPattern[], speed: number, preview: boolean = false, vm?: HexVM) {
     const patterns: ZappyHexPattern[] = [];
 
     for (const pat of pats) {
@@ -75,7 +79,7 @@ export class HexGrid extends Node {
       patterns.push(node);
     }
 
-    yield* this._wand.drawPatterns(patterns, speed);
+    yield* this._wand.drawPatterns(patterns, speed, vm);
   }
 
   public findOnoccupied(start: HexCoord, dir: HexDir, pattern: HexPattern): HexCoord {

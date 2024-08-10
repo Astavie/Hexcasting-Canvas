@@ -6,6 +6,7 @@ import { ZappyHexPattern } from "./ZappyHexPattern";
 export interface LineHexPatternProps extends LineProps {
   pattern: SignalValue<HexPattern>;
   centered?: SignalValue<boolean>;
+  exactHeight?: SignalValue<number | null>;
 }
 
 @nodeName('LineHexPattern')
@@ -16,6 +17,10 @@ export class LineHexPattern extends Line {
   @initial(true)
   @signal()
   public declare readonly centered: SimpleSignal<boolean, this>;
+
+  @initial(null)
+  @signal()
+  public declare readonly exactHeight: SimpleSignal<number | null, this>;
   
   public constructor(props: LineHexPatternProps) {
     super({
@@ -23,7 +28,7 @@ export class LineHexPattern extends Line {
       lineWidth: 4,
       stroke: 'white',
       lineCap: 'round',
-      points: () => this.pattern().points(this.centered()),
+      points: () => this.pattern().points(this.centered(), this.exactHeight() ?? undefined),
       ...props,
     });
   }
@@ -39,7 +44,7 @@ export class LineHexPattern extends Line {
   public *tweenPattern(value: SignalValue<HexPattern>, time: number, timingFunction?: TimingFunction) {
     // TODO: the default vector tweening function is kinda ugly
     // we should probably tween between hex angles
-    yield *this.points(unwrap(value).points(this.centered()), time,timingFunction);
+    yield *this.points(unwrap(value).points(this.centered(), this.exactHeight() ?? undefined), time,timingFunction);
     this.pattern(value);
   }
 }

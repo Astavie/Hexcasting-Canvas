@@ -1,10 +1,13 @@
 import { Img, ImgProps, initial, nodeName, signal } from "@motion-canvas/2d";
-import { createSignal, easeInCubic, easeInOutCubic, easeInOutQuad, easeInOutSine, easeInQuad, easeInSine, easeOutCubic, easeOutQuad, easeOutSine, EPSILON, linear, SignalValue, SimpleSignal, TimingFunction } from "@motion-canvas/core";
+import { createSignal, easeInOutSine, easeInSine, easeOutSine, EPSILON, linear, SignalValue, SimpleSignal, TimingFunction } from "@motion-canvas/core";
 import { LineHexPattern } from "./LineHexPattern";
 import { ZappyHexPattern } from "./ZappyHexPattern";
 import { DEFAULT_SCALE } from "../pattern";
+import { HexVM } from "../vm";
 
-export type HexWandType = "acacia" | "bamboo" | "birch" | "cherry" | "crimson" | "dark_oak" | "edified" | "jungle" | "mangrove" | "mindsplice" | "oak" | "old" | "quenched_0" | "quenched_1" | "quenched_2" | "quenched_3" | "spruce" | "warped";
+export type HexWandType =
+  "acacia" | "bamboo" | "birch" | "cherry" | "crimson" | "dark_oak" | "edified" | "jungle" | "mangrove" | "mindsplice" | "oak" | "old" | "quenched_0" | "quenched_1" | "quenched_2" | "quenched_3" | "spruce" | "warped" |
+  "cursor";
 
 export interface HexWandProps extends ImgProps {
   type?: SignalValue<HexWandType>;
@@ -20,8 +23,8 @@ export class HexWand extends Img {
     super({
       width: 16,
       height: 16,
-      offset: [0.75, -0.75],
-      src: () => `https://raw.githubusercontent.com/object-Object/HexMod/b61396b21e5e8be5232d8965cb7672427e86ddf6/Common/src/main/resources/assets/hexcasting/textures/item/staff/${this.type()}.png`,
+      offset: () => this.type() === "cursor" ? [-0.55, -0.75] : [0.75, -0.75],
+      src: () => this.type() === "cursor" ? "left_ptr.svg" : `https://raw.githubusercontent.com/object-Object/HexMod/b61396b21e5e8be5232d8965cb7672427e86ddf6/Common/src/main/resources/assets/hexcasting/textures/item/staff/${this.type()}.png`,
       smoothing: false,
       ...props,
     })
@@ -35,7 +38,7 @@ export class HexWand extends Img {
     yield* pat.end(1, time, timingFunction);
   }
 
-  public *drawPatterns(pats: (LineHexPattern | ZappyHexPattern)[], speed: number) {
+  public *drawPatterns(pats: (LineHexPattern | ZappyHexPattern)[], speed: number, vm?: HexVM) {
     for (let i = 0; i < pats.length; i++) {
       const pat = pats[i];
 
@@ -62,11 +65,18 @@ export class HexWand extends Img {
           adjustedSpeed = speed;
           timing = linear;
         } else {
-          yield* this.position(destination, hexDis / speed, timing);
+          yield* this.position(destination, hexDis / speed, linear);
         }
       }
 
       yield* this.drawPattern(pat, adjustedSpeed, timing);
+
+      if (vm !== undefined) {
+        const type = vm.draw(pat.pattern());
+        if (pat instanceof ZappyHexPattern) {
+          pat.type(type);
+        }
+      }
     }
   }
 }
