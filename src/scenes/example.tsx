@@ -12,7 +12,10 @@ function animateGif(img: Img, frames: number, delay: number, path: (frame: numbe
 function* explode(view:View2D) {
   const video = <Img width={1000} height={1000} smoothing={false}/> as Img;
   view.add(video);
-  yield* animateGif(video, 17, 0.05, ff => { const f = (ff + 8) % 17; return `frame_${f < 10 ? `0${f}` : f}_delay-0.1s.gif`});
+  yield* animateGif(video, 17, 0.05, ff => {
+  	const f = (ff + 8) % 17;
+  	return `frame_${f < 10 ? `0${f}` : f}_delay-0.1s.gif`
+  });
 }
 
 export default makeScene2D(function* (view) {

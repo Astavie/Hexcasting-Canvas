@@ -41,13 +41,16 @@ export class HexGrid extends Node {
   }
 
   public addPattern(pat: LineHexPattern | ZappyHexPattern, cursor?: HexCoord): this {
+    const bounds = pat.pattern().bounds();
+    const offset = -Math.floor((bounds[0].r + bounds[1].r) / 2);
+
     if (cursor === undefined) {
-      this._pos = this.findOnoccupied(this._pos, HexDir.EAST, pat.pattern());
+      this._pos = this.findOnoccupied(this._pos.add(0, offset), HexDir.EAST, pat.pattern()).add(0, -offset);
     } else {
       this._pos = cursor;
     }
 
-    pat.position(this._pos.point());
+    pat.position(this._pos.add(0, offset).point());
     return this.add(pat);
   }
 

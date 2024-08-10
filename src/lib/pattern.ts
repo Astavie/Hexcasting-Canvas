@@ -79,11 +79,15 @@ export class HexCoord {
 
   add(pos: HexCoord): HexCoord
   add(dir: HexDir): HexCoord
-  add(p: HexCoord | HexDir): HexCoord {
-    if (p instanceof HexCoord) {
-      return new HexCoord(this.q + p.q, this.r + p.r);
+  add(q: number, r: number): HexCoord
+
+  add(q: HexCoord | HexDir | number, r?: number): HexCoord {
+    if (q instanceof HexCoord) {
+      return new HexCoord(this.q + q.q, this.r + q.r);
+    } else if (r !== undefined) {
+      return new HexCoord(this.q + q, this.r + r);
     } else {
-      const [dq, dr] = dirDelta[p];
+      const [dq, dr] = dirDelta[q as HexDir];
       return new HexCoord(this.q + dq, this.r + dr);
     }
   }

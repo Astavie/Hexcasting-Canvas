@@ -1,5 +1,5 @@
 import { Img, ImgProps, initial, nodeName, signal } from "@motion-canvas/2d";
-import { createSignal, easeInCubic, easeInOutCubic, easeInOutQuad, easeInOutSine, easeInQuad, easeInSine, easeOutCubic, easeOutQuad, easeOutSine, linear, SignalValue, SimpleSignal, TimingFunction } from "@motion-canvas/core";
+import { createSignal, easeInCubic, easeInOutCubic, easeInOutQuad, easeInOutSine, easeInQuad, easeInSine, easeOutCubic, easeOutQuad, easeOutSine, EPSILON, linear, SignalValue, SimpleSignal, TimingFunction } from "@motion-canvas/core";
 import { LineHexPattern } from "./LineHexPattern";
 import { ZappyHexPattern } from "./ZappyHexPattern";
 import { DEFAULT_SCALE } from "../pattern";
@@ -52,12 +52,18 @@ export class HexWand extends Img {
         timing = easeOutSine;
       }
 
-      if (i > 0) {
-        const transform = createSignal(() => this.worldToParent().multiply(pat.localToWorld()));
-        const destination = () => pat.getCursor().transformAsPoint(transform());
-        const scale = Math.sqrt(this.scale().x * this.scale().y);
-        const hexDis = destination().sub(this.position()).magnitude / DEFAULT_SCALE / scale / 1.5;
-        yield* this.position(destination, hexDis / speed, linear);
+      const transform = createSignal(() => this.worldToParent().multiply(pat.localToWorld()));
+      const destination = () => pat.getCursor().transformAsPoint(transform());
+      const scale = Math.sqrt(this.scale().x * this.scale().y);
+      const hexDis = destination().sub(this.position()).magnitude / DEFAULT_SCALE / scale / 1.5;
+      if (hexDis > EPSILON) {
+        if (i === 0) {
+          yield* this.position(destination, hexDis / adjustedSpeed, timing);
+          adjustedSpeed = speed;
+          timing = linear;
+        } else {
+          yield* this.position(destination, hexDis / speed, timing);
+        }
       }
 
       yield* this.drawPattern(pat, adjustedSpeed, timing);
