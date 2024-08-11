@@ -58,7 +58,7 @@ export class HexGrid extends Node {
     return this.add(pat);
   }
 
-  public *drawPatterns(pats: PossibleHexPattern[], speed: number, preview: boolean = false, vm?: HexVM) {
+  public *drawPatterns(pats: PossibleHexPattern[], speed: number, preview: boolean = false, vm?: HexVM, audio: boolean = true) {
     const patterns: ZappyHexPattern[] = [];
 
     for (const pat of pats) {
@@ -79,7 +79,7 @@ export class HexGrid extends Node {
       patterns.push(node);
     }
 
-    yield* this._wand.drawPatterns(patterns, speed, vm);
+    yield* this._wand.drawPatterns(patterns, speed, vm, audio);
   }
 
   public findOnoccupied(start: HexCoord, dir: HexDir, pattern: HexPattern): HexCoord {

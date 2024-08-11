@@ -1,6 +1,6 @@
 import { Icon, initial, Layout, Node, nodeName, NodeProps, signal, Txt } from "@motion-canvas/2d";
 import { SignalValue, SimpleSignal } from "@motion-canvas/core";
-import { Iota, Vector3 } from "../eval";
+import { Iota, Vector3 } from "../vm";
 import { HexPattern } from "../pattern";
 import { LineHexPattern } from "./LineHexPattern";
 

@@ -1,9 +1,13 @@
 import { Img, ImgProps, initial, nodeName, signal } from "@motion-canvas/2d";
-import { createSignal, easeInOutSine, easeInSine, easeOutSine, EPSILON, linear, SignalValue, SimpleSignal, TimingFunction } from "@motion-canvas/core";
+import { createSignal, easeInOutSine, easeInSine, easeOutSine, EPSILON, linear, SignalValue, SimpleSignal, TimingFunction, createDeferredEffect, useScene } from "@motion-canvas/core";
 import { LineHexPattern } from "./LineHexPattern";
 import { ZappyHexPattern } from "./ZappyHexPattern";
-import { DEFAULT_SCALE } from "../pattern";
+import { DEFAULT_SCALE, PatternType } from "../pattern";
 import { HexVM } from "../vm";
+
+import addSegment from "../../../assets/add_segment.ogg";
+import fail from "../../../assets/fail.ogg";
+import normal from "../../../assets/normal.ogg";
 
 export type HexWandType =
   "acacia" | "bamboo" | "birch" | "cherry" | "crimson" | "dark_oak" | "edified" | "jungle" | "mangrove" | "mindsplice" | "oak" | "old" | "quenched_0" | "quenched_1" | "quenched_2" | "quenched_3" | "spruce" | "warped" |
@@ -30,15 +34,30 @@ export class HexWand extends Img {
     })
   }
 
-  public *drawPattern(pat: LineHexPattern | ZappyHexPattern, speed: number, timingFunction: TimingFunction = linear) {
+  public *drawPattern(pat: LineHexPattern | ZappyHexPattern, speed: number, timingFunction: TimingFunction = linear, audio: boolean = false) {
+    // set position to cursor
     const transform = createSignal(() => this.worldToParent().multiply(pat.localToWorld()));
     const destination = () => pat.getCursor().transformAsPoint(transform());
     this.position(destination);
+
+    // play audio
+    if (audio && pat instanceof ZappyHexPattern) {
+      let segments = 0;
+      createDeferredEffect(() => {
+        const new_segments = Math.floor(pat.end() * (pat.pattern().angles.length + 1));
+        if (new_segments > segments) {
+          useScene().sounds.add(addSegment, -30);
+        }
+        segments = new_segments;
+      });
+    }
+
+    // progress pattern
     const time = (pat.pattern().angles.length + 1) / speed;
     yield* pat.end(1, time, timingFunction);
   }
 
-  public *drawPatterns(pats: (LineHexPattern | ZappyHexPattern)[], speed: number, vm?: HexVM) {
+  public *drawPatterns(pats: (LineHexPattern | ZappyHexPattern)[], speed: number, vm?: HexVM, audio: boolean = false) {
     for (let i = 0; i < pats.length; i++) {
       const pat = pats[i];
 
@@ -69,13 +88,21 @@ export class HexWand extends Img {
         }
       }
 
-      yield* this.drawPattern(pat, adjustedSpeed, timing);
+      yield* this.drawPattern(pat, adjustedSpeed, timing, audio);
 
       if (vm !== undefined) {
         const type = vm.draw(pat.pattern());
         if (pat instanceof ZappyHexPattern) {
           pat.type(type);
         }
+      }
+
+      if (audio && pat instanceof ZappyHexPattern) {
+        let sfx = normal;
+        if (pat.type() === PatternType.ERRORED) {
+          sfx = fail;
+        }
+        useScene().sounds.add(sfx, -20);
       }
     }
   }

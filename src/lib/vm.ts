@@ -97,7 +97,7 @@ export class HexVM {
     if (!(iota instanceof HexPattern)) {
       // not a pattern
       this.push(null);
-      return PatternType.UNRESOLVED;
+      return PatternType.ERRORED;
     }
 
     switch (iota.toString().split(',')[1]) {
@@ -109,7 +109,7 @@ export class HexVM {
         break;
       default:
         this.push(null);
-        return PatternType.UNRESOLVED;
+        return PatternType.ERRORED;
     }
     return PatternType.EVALUATED;
   }
