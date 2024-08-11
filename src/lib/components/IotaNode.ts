@@ -1,6 +1,6 @@
 import { Icon, initial, Layout, Node, nodeName, NodeProps, signal, Txt } from "@motion-canvas/2d";
 import { SignalValue, SimpleSignal } from "@motion-canvas/core";
-import { Iota, Vector3 } from "../vm";
+import { Continuation, Iota, Vector3 } from "../vm";
 import { HexPattern } from "../pattern";
 import { LineHexPattern } from "./LineHexPattern";
 
@@ -50,16 +50,21 @@ export class IotaNode extends Node {
   }
 
   private _asNode(iota: Iota): Layout {
-    if (iota instanceof HexPattern || typeof(iota) === "string") {
-      const pattern = new HexPattern(iota);
-      return new LineHexPattern({ pattern, centered: true, exactHeight: this.size, lineWidth: () => this.size() / 50 * 4});
-      // pattern
-    } else if (typeof(iota) === "number" || iota instanceof Vector3) {
-      // number
+    if (typeof(iota) === "number" || iota instanceof Vector3 || iota === null) {
+      // toString
       return this.txtNode(`${iota}`);
-    } else if (iota === null) {
+    } else if (iota instanceof Continuation) {
+      // continuation
+      return this.txtNode(`Jump`);
+    } else if (iota === undefined) {
       // garbage
       return new Icon({ icon: "material-symbols:delete-outline", size: this.size });
+    } else if (typeof(iota) === "object" && "pattern" in iota) {
+      const pattern = iota.pattern;
+      return new LineHexPattern({ pattern, centered: true, exactHeight: this.size, lineWidth: () => this.size() / 50 * 4});
+    } else if (iota instanceof HexPattern) {
+      const pattern = iota;
+      return new LineHexPattern({ pattern, centered: true, exactHeight: this.size, lineWidth: () => this.size() / 50 * 4});
     } else {
       // array
       return new Layout({ layout: true, alignItems: "center", children: [

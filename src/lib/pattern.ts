@@ -1,6 +1,10 @@
 import { BBox, Color, Vector2 } from "@motion-canvas/core";
 import chroma from "chroma-js";
 
+import fail from "../../assets/fail.ogg";
+import normal from "../../assets/normal.ogg";
+import hermes from "../../assets/hermes.ogg";
+
 // Taken from:
 // https://github.com/FallingColors/HexMod/blob/e1ad4b316dd1e8f1f1300ee95bdbf796e8ebcad1/Common/src/main/java/at/petrak/hexcasting/api/casting/eval/ResolvedPatternType.kt#L5
 export class PatternType {
@@ -8,24 +12,27 @@ export class PatternType {
   public declare readonly color: Color;
   public declare readonly fadeColor: Color;
   public declare readonly success: boolean;
+  public declare readonly sound: string;
 
-  private constructor(name: string, color: number, fadeColor: number, success: boolean) {
+  private constructor(name: string, color: number, fadeColor: number, success: boolean, sound: string = normal) {
     this.name = name;
     this.color = chroma(color).alpha(0xc8 / 0xff);
     this.fadeColor = chroma(fadeColor).alpha(0xc8 / 0xff);
     this.success = success;
+    this.sound = sound;
   }
 
   public toString(): string {
     return this.name;
   }
 
-  public static readonly UNRESOLVED = new PatternType("UNRESOLVED ", 0x7f7f7f, 0xcccccc, false);
-  public static readonly EVALUATED = new PatternType("EVALUATED ", 0x7385de, 0xfecbe6, true);
-  public static readonly ESCAPED = new PatternType("ESCAPED ", 0xddcc73, 0xfffae5, true);
-  public static readonly UNDONE = new PatternType("UNDONE ", 0xb26b6b, 0xcca88e, true);
-  public static readonly ERRORED = new PatternType("ERRORED ", 0xde6262, 0xffc7a0, false);
-  public static readonly INVALID = new PatternType("INVALID ", 0xb26b6b, 0xcca88e, false);
+  public static readonly UNRESOLVED = new PatternType("UNRESOLVED", 0x7f7f7f, 0xcccccc, false);
+  public static readonly EVALUATED = new PatternType("EVALUATED", 0x7385de, 0xfecbe6, true);
+  public static readonly EVALUATED_HERMES = new PatternType("EVALUATED", 0x7385de, 0xfecbe6, true, hermes);
+  public static readonly ESCAPED = new PatternType("ESCAPED", 0xddcc73, 0xfffae5, true);
+  public static readonly UNDONE = new PatternType("UNDONE", 0xb26b6b, 0xcca88e, true);
+  public static readonly ERRORED = new PatternType("ERRORED", 0xde6262, 0xffc7a0, false, fail);
+  public static readonly INVALID = new PatternType("INVALID", 0xb26b6b, 0xcca88e, false, fail);
 }
 
 export enum HexDir {
@@ -233,6 +240,12 @@ export class HexPattern {
     return new HexPattern(mirrorDir, mirrorAngles);
   }
 
+  public rotated(angle: HexAngle): HexPattern {
+    const cloned = new HexPattern(this);
+    cloned.startDir = (cloned.startDir + angle) % 6;
+    return cloned;
+  }
+
   public equals(other: HexPattern): boolean {
     // patterns are equal irrespective of orientation
     return this.angles.length === other.angles.length && this.angles.every((a, i) => a === other.angles[i]);
@@ -290,4 +303,25 @@ export class HexPattern {
     }
     return found;
   }
+}
+
+export const INTROSPECTION = new HexPattern("west,qqq");
+export const RETROSPECTION = new HexPattern("east,eee");
+export const IRIS_GAMBIT = new HexPattern("northwest,qwaqde");
+export const HERMES_GAMBIT = new HexPattern("southeast,deaqq");
+
+export type PossibleHexPatterns = (PossibleHexPattern | PossibleHexPatterns)[];
+
+export function patterns(...inputs: PossibleHexPatterns): HexPattern[] {
+  let output: HexPattern[] = [];
+
+  for (const input of inputs) {
+    if (Array.isArray(input)) {
+      output.push(INTROSPECTION, ...patterns(...input), RETROSPECTION);
+    } else {
+      output.push(new HexPattern(input));
+    }
+  }
+  
+  return output;
 }

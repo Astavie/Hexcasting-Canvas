@@ -47,6 +47,12 @@ export class LineHexPattern extends Line {
     yield *this.points(unwrap(value).points(this.centered(), this.exactHeight() ?? undefined), time,timingFunction);
     this.pattern(value);
   }
+
+  protected override drawShape(context: CanvasRenderingContext2D): void {
+    if (this.end() > 0) {
+      super.drawShape(context);
+    }
+  }
 }
 
 @nodeName('PreviewHexPattern')
