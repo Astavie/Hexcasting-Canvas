@@ -24,6 +24,8 @@ export class HexWand extends Img {
     super({
       width: 16,
       height: 16,
+      scale: () => this.type() === "cursor" ? 1 : 2,
+      zIndex: EPSILON,
       offset: () => this.type() === "cursor" ? [-0.55, -0.75] : [0.75, -0.75],
       src: () => this.type() === "cursor" ? "left_ptr.svg" : `https://raw.githubusercontent.com/object-Object/HexMod/b61396b21e5e8be5232d8965cb7672427e86ddf6/Common/src/main/resources/assets/hexcasting/textures/item/staff/${this.type()}.png`,
       smoothing: false,

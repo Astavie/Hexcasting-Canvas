@@ -1,12 +1,11 @@
 import { nodeName, NodeProps, Node, initial, signal, vector2Signal, Vector2LengthSignal, Length } from "@motion-canvas/2d";
-import { BBox, EPSILON, PossibleVector2, SignalValue, SimpleSignal, Vector2 } from "@motion-canvas/core";
+import { BBox, PossibleVector2, SignalValue, SimpleSignal, Vector2 } from "@motion-canvas/core";
 import { HexWand, HexWandType } from "./HexWand";
-import { DEFAULT_SCALE, HexCoord, HexDir, HexPattern, PatternType, PossibleHexPattern } from "../pattern";
+import { DEFAULT_SCALE, HexCoord, HexDir, HexPattern } from "../pattern";
 import { ZappyHexPattern } from "./ZappyHexPattern";
-import { LineHexPattern, PreviewHexPattern } from "./LineHexPattern";
+import { LineHexPattern } from "./LineHexPattern";
 import { drawSpot, lerp } from "../render";
 import chroma from "chroma-js";
-import { HexVM } from "../vm";
 
 export interface HexGridProps extends NodeProps {
   wandType?: SignalValue<HexWandType>,
@@ -16,7 +15,7 @@ export interface HexGridProps extends NodeProps {
 @nodeName('HexGrid')
 export class HexGrid extends Node {
   
-  @initial("cursor")
+  @initial("oak")
   @signal()
   public declare readonly wandType: SimpleSignal<HexWandType, this>;
 
@@ -25,7 +24,11 @@ export class HexGrid extends Node {
   public declare readonly size: Vector2LengthSignal<this>;
 
   private _wand: HexWand;
-  private _pos: HexCoord = new HexCoord(0, 0);
+
+  private _lastCoord?: HexCoord;
+  private _lastPattern?: HexPattern;
+
+  public cursor: HexCoord = new HexCoord(0, 0);
 
   public get wand(): HexWand {
     return this._wand;
@@ -44,42 +47,21 @@ export class HexGrid extends Node {
     this.add(this._wand);
   }
 
-  public addPattern(pat: LineHexPattern | ZappyHexPattern, cursor?: HexCoord): this {
+  public addPattern(pat: LineHexPattern | ZappyHexPattern, cursor?: HexCoord): HexCoord {
     const bounds = pat.pattern().bounds();
     const offset = -Math.floor((bounds[0].r + bounds[1].r) / 2);
 
     if (cursor === undefined) {
-      this._pos = this.findOnoccupied(this._pos.add(0, offset), HexDir.EAST, pat.pattern()).add(0, -offset);
+      this.cursor = this.findOnoccupied(this.cursor.add(0, offset), HexDir.EAST, pat.pattern()).add(0, -offset);
     } else {
-      this._pos = cursor;
+      this.cursor = cursor;
     }
 
-    pat.position(this._pos.add(0, offset).point());
-    return this.add(pat);
-  }
-
-  public *drawPatterns(pats: PossibleHexPattern[], speed: number, preview: boolean = false, vm?: HexVM, audio: boolean = true) {
-    const patterns: ZappyHexPattern[] = [];
-
-    for (const pat of pats) {
-      const pattern = new HexPattern(pat);
-      const node = new ZappyHexPattern({
-        pattern,
-        zIndex: this._wand.zIndex() - EPSILON,
-        centered: false,
-        type: PatternType.EVALUATED,
-        end: 0,
-      });
-
-      if (preview) {
-        node.add(new PreviewHexPattern());
-      }
-
-      this.addPattern(node);
-      patterns.push(node);
-    }
-
-    yield* this._wand.drawPatterns(patterns, speed, vm, audio);
+    pat.position(this.cursor.add(0, offset).point());
+    this.add(pat);
+    this._lastPattern = pat.pattern();
+    this._lastCoord = this.cursor.add(0, offset);
+    return this._lastCoord;
   }
 
   public findOnoccupied(start: HexCoord, dir: HexDir, pattern: HexPattern): HexCoord {
@@ -91,11 +73,9 @@ export class HexGrid extends Node {
   }
 
   public occupied(...coords: HexCoord[]): boolean {
-    for (const node of this.patterns()) {
-      const pos = HexCoord.snap(node.position());
-      const pattern = node.pattern();
-      const pcoords = pattern.coords();
-      if (pcoords.some(c => coords.some(o => c.add(pos).equals(o)))) {
+    if (this._lastPattern && this._lastCoord) {
+      const pcoords = this._lastPattern.coords();
+      if (pcoords.some(c => coords.some(o => c.add(this._lastCoord).equals(o)))) {
         return true;
       }
     }

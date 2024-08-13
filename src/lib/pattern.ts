@@ -309,19 +309,3 @@ export const INTROSPECTION = new HexPattern("west,qqq");
 export const RETROSPECTION = new HexPattern("east,eee");
 export const IRIS_GAMBIT = new HexPattern("northwest,qwaqde");
 export const HERMES_GAMBIT = new HexPattern("southeast,deaqq");
-
-export type PossibleHexPatterns = (PossibleHexPattern | PossibleHexPatterns)[];
-
-export function patterns(...inputs: PossibleHexPatterns): HexPattern[] {
-  let output: HexPattern[] = [];
-
-  for (const input of inputs) {
-    if (Array.isArray(input)) {
-      output.push(INTROSPECTION, ...patterns(...input), RETROSPECTION);
-    } else {
-      output.push(new HexPattern(input));
-    }
-  }
-  
-  return output;
-}

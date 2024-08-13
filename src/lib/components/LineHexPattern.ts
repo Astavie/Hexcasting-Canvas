@@ -59,7 +59,6 @@ export class LineHexPattern extends Line {
 export class PreviewHexPattern extends LineHexPattern {
   public constructor(props?: LineProps) {
     super({
-      lineWidth: 2,
       opacity: 0.2,
       pattern: () => (this.parent() as LineHexPattern | ZappyHexPattern).pattern(),
       centered: () => (this.parent() as LineHexPattern | ZappyHexPattern).centered(),
