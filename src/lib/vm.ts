@@ -1,5 +1,5 @@
-import { Promisable, spawn, Thread, ThreadGenerator, useScene } from "@motion-canvas/core";
-import { HexPattern, INTROSPECTION, patterns, PatternType, PossibleHexPatterns, RETROSPECTION } from "./pattern";
+import { addSound, linear, Promisable, spawn, Thread, ThreadGenerator, Vector2 } from "@motion-canvas/core";
+import { HexCoord, HexPattern, INTROSPECTION, patterns, PatternType, PossibleHexPatterns, RETROSPECTION } from "./pattern";
 import { Layout, LayoutProps } from "@motion-canvas/2d";
 import { IotaNode } from "./components/IotaNode";
 import { HexGrid } from "./components/HexGrid";
@@ -10,9 +10,9 @@ import { ZappyHexPattern } from "./components/ZappyHexPattern";
 export type Iota = HexPattern | CustomPattern | number | Vector3 | Iota[] | null | undefined | Continuation;
 
 export class Continuation {
-  constructor(public iotas: Iota[][]) {}
+  constructor(public iotas: Iota[][], public patterns: (LineHexPattern | ZappyHexPattern)[] = [], public wandPos: Vector2 = Vector2.zero) {}
   clone(): Continuation {
-    return new Continuation([...this.iotas.map(a => [...a])]);
+    return new Continuation([...this.iotas.map(a => [...a])], this.patterns, this.wandPos);
   }
 }
 
@@ -103,15 +103,16 @@ export class HexVM {
     });
 
     const children: IotaNode[] = [];
+    const speed = this.wandSpeed;
     this.onPush = function*(iota) {
       const node = new IotaNode({ iota, size: 0 });
       children.push(node);
       rect.add(node);
-      spawn(node.size(50, 0.3));
+      spawn(node.size(50, 1.6 / speed));
     };
     this.onPop = function*() {
       const node = children.pop();
-      spawn(node.size(0, 0.3).do(() => node.remove()));
+      spawn(node.size(0, 1.6 / speed).do(() => node.remove()));
     };
 
     return rect;
@@ -127,13 +128,18 @@ export class HexVM {
     if (this.grid !== undefined && next instanceof HexPattern) {
       const line = new LineHexPattern({ pattern: next, end: 0, centered: false });
       this.grid.addPattern(line);
-      yield* this.grid.wand.drawPattern(line, this.wandSpeed);
+
+      const time = (line.pattern().angles.length + 1) / this.wandSpeed;
+      yield* line.end(1, time, linear);
+
+      this._continuation.patterns = this.grid.patterns();
+      this._continuation.wandPos = this.grid.wand.position();
     }
 
     const type = yield* this.perform(next);
 
     if (this.grid !== undefined) {
-      useScene().sounds.add(type.sound, -20);
+      addSound({ audio: type.sound, gain: -12 });
     }
   }
 
@@ -146,9 +152,12 @@ export class HexVM {
         this.grid.addPattern(line);
         yield* this.grid.wand.drawPattern(line, this.wandSpeed, true);
 
+        this._continuation.patterns = this.grid.patterns();
+        this._continuation.wandPos = this.grid.wand.position();
+
         const type = yield* this.perform(pattern);
         line.type(type);
-        useScene().sounds.add(type.sound, -20);
+        addSound({ audio: type.sound, gain: -12 });
       } else {
         yield* this.perform(pattern);
       }
@@ -209,6 +218,21 @@ export class HexVM {
 
   *setContinuation(cont: Continuation): ThreadGenerator {
     this._continuation = cont;
+    if (this.grid !== undefined) {
+      this.grid.wand.position(cont.wandPos);
+
+      const patterns = this.grid.patterns();
+      for (const pattern of patterns) {
+        if (!cont.patterns.includes(pattern)) {
+          pattern.remove();
+        }
+      }
+      for (const pattern of cont.patterns) {
+        if (!patterns.includes(pattern)) {
+          this.grid.add(pattern);
+        }
+      }
+    }
   }
 
   *pushContinuation(iotas: Iota): ThreadGenerator {

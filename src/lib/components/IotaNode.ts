@@ -24,21 +24,13 @@ export class IotaNode extends Node {
   }
 
   private txtNode(text: string): Layout {
-    const size = this.size;
-    const fontSize = function(this: Layout): number {
-      const old = (<any>this.element.style)['font-size'];
-      (<any>this.element.style)['font-size'] = '';
-      const ret = parseFloat.call(this, this.styles.getPropertyValue('font-size'));
-      (<any>this.element.style)['font-size'] = old;
-      return size() / 50 * ret;
-    }
     const txt: Txt = new Txt({
       text,
       fill: "white",
-      fontSize: () => fontSize.call(txt),
+      fontSize: () => this.size() / 50 * 48,
       fontFamily: "monospace",
-      lineHeight: () => size() / 50 * 46,
-      paddingTop: () => size() / 50 * 4,
+      lineHeight: () => this.size() / 50 * 46,
+      paddingTop: () => this.size() / 50 * 4,
     });
     return txt;
   }

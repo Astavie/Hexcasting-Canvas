@@ -16,8 +16,8 @@ export class PatternType {
 
   private constructor(name: string, color: number, fadeColor: number, success: boolean, sound: string = normal) {
     this.name = name;
-    this.color = chroma(color).alpha(0xc8 / 0xff);
-    this.fadeColor = chroma(fadeColor).alpha(0xc8 / 0xff);
+    this.color = chroma(color);
+    this.fadeColor = chroma(fadeColor);
     this.success = success;
     this.sound = sound;
   }
