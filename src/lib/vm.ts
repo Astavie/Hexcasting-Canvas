@@ -1,5 +1,5 @@
-import { addSound, linear, Promisable, spawn, Thread, ThreadGenerator, Vector2, waitFor } from "@motion-canvas/core";
-import { HexCoord, HexPattern, INTROSPECTION, PatternType, PossibleHexPattern, RETROSPECTION } from "./pattern";
+import { easeOutCubic, Promisable, SoundBuilder, spawn, Thread, ThreadGenerator, Vector2, waitFor } from "@motion-canvas/core";
+import { hermesSound, HexCoord, HexPattern, INTROSPECTION, PatternType, PossibleHexPattern, RETROSPECTION } from "./pattern";
 import { Layout, LayoutProps } from "@motion-canvas/2d";
 import { IotaNode } from "./components/IotaNode";
 import { HexGrid } from "./components/HexGrid";
@@ -33,9 +33,76 @@ export function isPattern(iota: Iota): iota is IotaPattern {
 }
 
 export class Continuation {
-  constructor(public iotas: (Iota & {node?: LineHexPattern})[][], public patterns: (LineHexPattern | ZappyHexPattern)[] = [], public wandPos: Vector2[] = []) {}
+  constructor(public frames: ContinuationFrame[] = []) {}
   clone(): Continuation {
-    return new Continuation([...this.iotas.map(a => [...a])], this.patterns, this.wandPos);
+    return new Continuation([...this.frames.map(f => f.clone())]);
+  }
+}
+
+export interface ContinuationFrame {
+  step(vm: HexVM): ThreadGenerator,
+
+  clone(): ContinuationFrame,
+
+  remove(grid?: HexGrid): void,
+  restore(grid?: HexGrid): void,
+}
+
+export class EvaluationFrame implements ContinuationFrame {
+  private evaluated: number = 0;
+  private savedWand: Vector2 = Vector2.zero;
+
+  constructor(private iotas: Iota[], private wand?: HexWand) {}
+
+  remove(grid?: HexGrid): void {
+    if (grid) {
+      for (const iota of this.iotas) {
+        if (isPattern(iota) && iota.node) {
+          iota.node.remove();
+        }
+      }
+    }
+  }
+
+  restore(grid?: HexGrid): void {
+    this.wand?.position(this.savedWand);
+    if (grid) {
+      for (let i = 0; i < this.iotas.length; i++) {
+        const iota = this.iotas[i];
+        if (isPattern(iota) && iota.node) {
+          iota.node.end(i < this.evaluated ? 1 : 0);
+          grid.add(iota.node);
+        }
+      }
+    }
+  }
+
+  clone(): ContinuationFrame {
+    const frame = new EvaluationFrame(this.iotas, this.wand);
+    frame.evaluated = this.evaluated;
+    frame.savedWand = this.wand?.position() ?? Vector2.zero;
+    return frame;
+  }
+
+  *step(vm: HexVM): ThreadGenerator {
+    if (this.evaluated >= this.iotas.length) {
+      vm.continuation.frames.pop();
+      return;
+    }
+  
+    const next = this.iotas[this.evaluated];
+    this.evaluated += 1;
+
+    if (vm.grid !== undefined && isPattern(next) && next.node) {
+      yield* this.wand.drawPattern(next.node, vm.wandSpeed, true);
+    }
+
+    const result = yield* vm.perform(next);
+    const type = result.type ?? PatternType.EVALUATED;
+
+    if (vm.grid !== undefined) {
+      (result.sound ?? type.sound).play();
+    }
   }
 }
 
@@ -64,11 +131,18 @@ export type ThreadGeneratorR<T> = Generator<
 export type IotaPattern = {
   pattern: HexPattern,
   origin?: HexCoord,
+  node?: LineHexPattern,
 } & Partial<ResolvedPattern>;
 
 export type ResolvedPattern = {
   name: string,
-  perform(vm: HexVM, pattern: IotaPattern): ThreadGeneratorR<PatternType | void>,
+  perform(vm: HexVM, pattern: IotaPattern): ThreadGeneratorR<CastResult | PatternType | void>,
+}
+
+export type CastResult = {
+  continuation?: Continuation | ContinuationFrame,
+  type?: PatternType,
+  sound?: SoundBuilder,
 }
 
 export const resolvedPatterns: Record<string, ResolvedPattern> = {
@@ -89,30 +163,30 @@ export const resolvedPatterns: Record<string, ResolvedPattern> = {
     *perform(vm) {
       const patterns = yield* vm.pop();
       yield* vm.pushContinuation(patterns);
-      return PatternType.EVALUATED_HERMES;
+      return { sound: hermesSound };
     }
   },
   "qwaqde": {
     name: "Iris' Gambit",
     *perform(vm) {
       const patterns = yield* vm.pop();
-      const cont = vm.currentContinuation();
+      const cont = vm.continuation.clone();
       yield* vm.push(cont);
       yield* vm.pushContinuation(patterns);
-      return PatternType.EVALUATED_HERMES;
+      return { sound: hermesSound };
     }
   },
 };
 
 export class HexVM {
 
-  private _stack: Iota[] = [];
-  private _introspected: Iota[] = [];
-  private _continuation: Continuation = new Continuation([]);
-  private _wands: HexWand[] = [];
+  private stack: Iota[] = [];
+  private escaped: Iota[] = [];
 
-  private _introspectionState = 0;
-  private _considerationState: boolean = false;
+  private introspections = 0;
+  private escapeNext: boolean = false;
+
+  public continuation: Continuation = new Continuation();
 
   onPush?: (iota: Iota) => ThreadGenerator;
   onPop?: () => ThreadGenerator;
@@ -144,28 +218,10 @@ export class HexVM {
   }
 
   *step(): ThreadGenerator {
-    const iotas = this._continuation.iotas;
-    if (iotas.length === 0) return;
+    const frames = this.continuation.frames;
+    if (frames.length === 0) return;
 
-    const idx = iotas.length - 1;
-    const next = iotas[idx].shift();
-    if (iotas[idx].length === 0) iotas.pop();
-
-    if (this.grid !== undefined && isPattern(next) && next.node) {
-      while (this._wands.length < idx + 1) {
-        const wand = new HexWand({opacity: 0, type: 'cursor'});
-        this.grid.add(wand);
-        this._wands.push(wand);
-        spawn(wand.opacity(1, 2 / this.wandSpeed));
-      }
-      yield* this._wands[idx].drawPattern(next.node, this.wandSpeed, true);
-    }
-
-    const type = yield* this.perform(next);
-
-    if (this.grid !== undefined) {
-      addSound({ audio: type.sound, gain: -12 });
-    }
+    yield* frames[frames.length - 1].step(this);
   }
 
   *draw(...ps: PossibleHexPatterns[]): ThreadGenerator {
@@ -177,9 +233,11 @@ export class HexVM {
         const origin = this.grid.addPattern(line);
         yield* this.grid.wand.drawPattern(line, this.wandSpeed, true);
 
-        const type = yield* this.perform({ ...pattern, origin });
+        const result = yield* this.perform({ ...pattern, origin });
+        const type = result.type ?? PatternType.EVALUATED;
+
         line.type(type);
-        addSound({ audio: type.sound, gain: -12 });
+        (result.sound ?? type.sound).play();
       } else {
         yield* this.perform(pattern);
       }
@@ -187,20 +245,20 @@ export class HexVM {
   }
 
   *run(): ThreadGenerator {
-    while (this._continuation.iotas.length > 0) {
+    while (this.continuation.frames.length > 0) {
       yield* this.step();
     }
   }
 
-  *perform(iota: Iota): ThreadGeneratorR<PatternType> {
-    if (this._considerationState) {
+  *perform(iota: Iota): ThreadGeneratorR<CastResult> {
+    if (this.escapeNext) {
       // push iota on the stack
       yield* this.push(iota);
-      this._considerationState = false;
-      return PatternType.ESCAPED;
+      this.escapeNext = false;
+      return {type: PatternType.ESCAPED};
     }
 
-    if (this._introspectionState > 0) {
+    if (this.introspections > 0) {
       // custom logic for introspection and retrospection
       if (isPattern(iota)) {
         if (iota.pattern.equals(INTROSPECTION)) {
@@ -211,14 +269,14 @@ export class HexVM {
       }
 
       // push iota on the introspection list
-      this._introspected.push(iota);
-      return PatternType.ESCAPED;
+      this.escaped.push(iota);
+      return {type: PatternType.ESCAPED};
     }
 
     if (!isPattern(iota)) {
       // not a pattern
       yield* this.push(undefined);
-      return PatternType.ERRORED;
+      return {type: PatternType.ERRORED};
     }
 
     const angles = iota.pattern.toString().split(',')[1];
@@ -228,55 +286,21 @@ export class HexVM {
 
     if (perform === undefined) {
       yield* this.push(undefined);
-      return PatternType.ERRORED;
+      return {type: PatternType.ERRORED};
     } else {
-      return <PatternType | undefined>(yield* perform(this, iota)) ?? PatternType.EVALUATED;
+      const result = <CastResult | PatternType | undefined>(yield* perform(this, iota)) ?? {};
+      if (result instanceof PatternType) {
+        return {type: result};
+      } else {
+        return result;
+      }
     }
-  }
-
-  currentContinuation(): Continuation {
-    if (this.grid) {
-      this._continuation.patterns = this.grid.patterns();
-      this._continuation.wandPos = this._wands.map(w => w.position());
-    }
-    return this._continuation.clone();
   }
 
   *setContinuation(cont: Continuation): ThreadGenerator {
-    this._continuation = cont;
-    if (this.grid !== undefined) {
-      while (this._wands.length < cont.wandPos.length) {
-        const wand = new HexWand({type: 'cursor'});
-        this.grid.add(wand);
-        this._wands.push(wand);
-      }
-      while (this._wands.length > cont.wandPos.length) {
-        const wand = this._wands.pop();
-        wand.remove();
-      }
-      for (let i = 0; i < cont.wandPos.length; i++) {
-        this._wands[i].position(cont.wandPos[i]);
-      }
-
-      const patterns = this.grid.patterns();
-      for (const pattern of patterns) {
-        if (!cont.patterns.includes(pattern)) {
-          pattern.remove();
-        }
-      }
-      for (const pattern of cont.patterns) {
-        if (!patterns.includes(pattern)) {
-          this.grid.add(pattern);
-        }
-      }
-      for (const iotas of cont.iotas) {
-        for (const iota of iotas) {
-          if (iota.node) {
-            iota.node.end(0);
-          }
-        }
-      }
-    }
+    this.continuation.frames.forEach(f => f.remove(this.grid));
+    this.continuation = cont;
+    this.continuation.frames.forEach(f => f.restore(this.grid));
   }
 
   *pushContinuation(iota: Iota): ThreadGenerator {
@@ -289,30 +313,41 @@ export class HexVM {
     if (iotas.length === 0) {
       return;
     }
-
     if (this.grid) {
-      this.grid.cursor = new HexCoord(0, this._continuation.iotas.length * 4 + 4);
-      const iotasp = iotas.map(i => {
+      this.grid.cursor = new HexCoord(0, this.continuation.frames.length * 4 + 4);
+      const iotasp = iotas.map((i, idx) => {
         if (isPattern(i)) {
           const line = new LineHexPattern({ pattern: i.pattern, end: 0, centered: false, children: new PreviewHexPattern() });
           const dest = this.grid.addPattern(line);
 
+          const offset = idx / 2 / this.wandSpeed;
+          const time = 2 / this.wandSpeed;
+
           if (i.origin) {
             line.position(i.origin.point());
-            spawn(line.position(dest.point(), 2 / this.wandSpeed));
+            spawn(function*() { 
+              yield* waitFor(offset);
+              yield* line.position(dest.point(), time, easeOutCubic)
+            });
           } else {
             line.opacity(0);
-            spawn(line.opacity(1, 2 / this.wandSpeed));
+            spawn(function*() { 
+              yield* waitFor(offset);
+              yield* line.opacity(1, time, easeOutCubic);
+            });
           }
 
-          return { ...i, node: line };
+          return { ...i, origin: dest, node: line };
         } else {
           return i;
         }
       });
-      this._continuation.iotas.push(iotasp);
+
+      const wand = new HexWand({type:"cursor"});
+      this.grid.add(wand);
+      this.continuation.frames.push(new EvaluationFrame(iotasp, wand));
     } else {
-      this._continuation.iotas.push(iotas);
+      this.continuation.frames.push(new EvaluationFrame(iotas));
     }
   }
 
@@ -322,39 +357,39 @@ export class HexVM {
         yield* this.onPush(iota);
       }
     }
-    this._stack.push(...iotas);
+    this.stack.push(...iotas);
   }
 
   *pop(): ThreadGeneratorR<Iota> {
     if (this.onPop !== undefined) {
       yield* this.onPop();
     }
-    return this._stack.pop();
+    return this.stack.pop();
   }
 
-  *introspection(pattern: IotaPattern): ThreadGeneratorR<PatternType> {
-    this._introspectionState += 1;
-    if (this._introspectionState > 1) {
-      this._introspected.push(pattern);
-      return PatternType.ESCAPED;
+  *introspection(pattern: IotaPattern): ThreadGeneratorR<CastResult> {
+    this.introspections += 1;
+    if (this.introspections > 1) {
+      this.escaped.push(pattern);
+      return {type: PatternType.ESCAPED};
     } else {
-      return PatternType.EVALUATED;
+      return {type: PatternType.EVALUATED};
     }
   }
 
-  *retrospection(pattern: IotaPattern): ThreadGeneratorR<PatternType> {
-    if (this._introspectionState === 0) {
+  *retrospection(pattern: IotaPattern): ThreadGeneratorR<CastResult> {
+    if (this.introspections === 0) {
       yield* this.push(pattern);
-      return PatternType.ERRORED;
+      return {type: PatternType.ERRORED};
     } else {
-      this._introspectionState -= 1;
-      if (this._introspectionState === 0) {
-        yield* this.push(this._introspected);
-        this._introspected = [];
-        return PatternType.EVALUATED;
+      this.introspections -= 1;
+      if (this.introspections === 0) {
+        yield* this.push(this.escaped);
+        this.escaped = [];
+        return {type: PatternType.EVALUATED};
       } else {
-        this._introspected.push(pattern);
-        return PatternType.ESCAPED;
+        this.escaped.push(pattern);
+        return {type: PatternType.ESCAPED};
       }
     }
   }

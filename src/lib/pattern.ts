@@ -1,9 +1,13 @@
-import { BBox, Color, Vector2 } from "@motion-canvas/core";
+import { BBox, Color, sound, SoundBuilder, Vector2 } from "@motion-canvas/core";
 import chroma from "chroma-js";
 
-import fail from "../../assets/fail.ogg";
-import normal from "../../assets/normal.ogg";
-import hermes from "../../assets/hermes.ogg";
+import failAudio from "../../assets/fail.ogg";
+import normalAudio from "../../assets/normal.ogg";
+import hermesAudio from "../../assets/hermes.ogg";
+
+export const failSound = sound(failAudio).gain(-12);
+export const normalSound = sound(normalAudio).gain(-12);
+export const hermesSound = sound(hermesAudio).gain(-12);
 
 // Taken from:
 // https://github.com/FallingColors/HexMod/blob/e1ad4b316dd1e8f1f1300ee95bdbf796e8ebcad1/Common/src/main/java/at/petrak/hexcasting/api/casting/eval/ResolvedPatternType.kt#L5
@@ -12,9 +16,9 @@ export class PatternType {
   public declare readonly color: Color;
   public declare readonly fadeColor: Color;
   public declare readonly success: boolean;
-  public declare readonly sound: string;
+  public declare readonly sound: SoundBuilder;
 
-  private constructor(name: string, color: number, fadeColor: number, success: boolean, sound: string = normal) {
+  private constructor(name: string, color: number, fadeColor: number, success: boolean, sound: SoundBuilder = normalSound) {
     this.name = name;
     this.color = chroma(color);
     this.fadeColor = chroma(fadeColor);
@@ -28,11 +32,10 @@ export class PatternType {
 
   public static readonly UNRESOLVED = new PatternType("UNRESOLVED", 0x7f7f7f, 0xcccccc, false);
   public static readonly EVALUATED = new PatternType("EVALUATED", 0x7385de, 0xfecbe6, true);
-  public static readonly EVALUATED_HERMES = new PatternType("EVALUATED", 0x7385de, 0xfecbe6, true, hermes);
   public static readonly ESCAPED = new PatternType("ESCAPED", 0xddcc73, 0xfffae5, true);
   public static readonly UNDONE = new PatternType("UNDONE", 0xb26b6b, 0xcca88e, true);
-  public static readonly ERRORED = new PatternType("ERRORED", 0xde6262, 0xffc7a0, false, fail);
-  public static readonly INVALID = new PatternType("INVALID", 0xb26b6b, 0xcca88e, false, fail);
+  public static readonly ERRORED = new PatternType("ERRORED", 0xde6262, 0xffc7a0, false, failSound);
+  public static readonly INVALID = new PatternType("INVALID", 0xb26b6b, 0xcca88e, false, failSound);
 }
 
 export enum HexDir {

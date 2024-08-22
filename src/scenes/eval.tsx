@@ -8,7 +8,7 @@ export default makeScene2D(function* (view) {
   const grid = createRef<HexGrid>();
   view.add(<HexGrid size={500} scale={2} ref={grid}/>);
 
-  const vm = new HexVM(grid(), 16);
+  const vm = new HexVM(grid(), 12);
   view.add(vm.stackNode({ scale: 2, x: -500 }));
 
   yield* vm.draw([[], IRIS_GAMBIT.rotated(3), IRIS_GAMBIT], HERMES_GAMBIT);

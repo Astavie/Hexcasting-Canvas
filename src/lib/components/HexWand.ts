@@ -1,5 +1,5 @@
 import { Img, ImgProps, initial, nodeName, signal } from "@motion-canvas/2d";
-import { createSignal, linear, SignalValue, SimpleSignal, createDeferredEffect, EPSILON, addSound } from "@motion-canvas/core";
+import { createSignal, linear, SignalValue, SimpleSignal, createDeferredEffect, EPSILON, sound } from "@motion-canvas/core";
 import { LineHexPattern } from "./LineHexPattern";
 import { ZappyHexPattern } from "./ZappyHexPattern";
 import { DEFAULT_SCALE } from "../pattern";
@@ -41,20 +41,21 @@ export class HexWand extends Img {
     const hexDis = destination().sub(this.position()).magnitude / DEFAULT_SCALE / scale / 1.5;
     yield* this.position(destination, hexDis / speed, linear);
 
+    const segments = pat.pattern().angles.length + 1;
+    const time = segments / speed;
+
     // play audio
     if (audio && pat instanceof ZappyHexPattern) {
-      let segments = 0;
-      createDeferredEffect(() => {
-        const new_segments = Math.floor(pat.endSnapped() * (pat.pattern().angles.length + 1) + EPSILON);
-        if (new_segments > segments) {
-          addSound({ audio: addSegment, gain: -15, detune: new_segments * 200 - 400 });
-        }
-        segments = new_segments;
-      });
+      const offset = (1 - pat.snap()) / speed;
+      for (let i = 0; i < segments; i++) {
+        sound(addSegment)
+          .gain(-15)
+          .detune(-400 + i * 200)
+          .play(i / speed + offset);
+      }
     }
 
     // progress pattern
-    const time = (pat.pattern().angles.length + 1) / speed;
     yield* pat.end(1, time, linear);
   }
 }
